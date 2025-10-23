@@ -61,7 +61,6 @@ export default function RandomPairsScreen({ route }) {
         <Button
           title="Generar parejas"
           onPress={generatePairs}
-          disabled={selected.length !== 4}
         />
       </View>
 
