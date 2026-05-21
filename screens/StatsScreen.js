@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Button, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function StatsScreen({ route }) {
   const { groupName } = route.params;
   const [playerStats, setPlayerStats] = useState([]);
   const [pairStats, setPairStats] = useState([]);
-  const [totalMatches, setTotalMatches] = useState(0); // nuevo estado
+  const [totalMatches, setTotalMatches] = useState(0);
+  const [showPairs, setShowPairs] = useState(false);
+  
+  // 🔄 Estado para rotar la última columna: 'partidas' -> 'juegos' -> 'dif'
+  const [columnMode, setColumnMode] = useState('partidas');
+
+  // 🔀 Estado para controlar el ordenamiento de los jugadores: 'normal' (% Vic) o 'dif' (Diferencia)
+  const [sortMode, setSortMode] = useState('normal');
 
   useEffect(() => {
     loadStats();
@@ -20,27 +27,45 @@ export default function StatsScreen({ route }) {
     const players = parsed.players || [];
     const matches = parsed.matches || [];
 
-    setTotalMatches(matches.length); // ← guardar total de partidas
+    setTotalMatches(matches.length);
 
     // Estadísticas individuales
     const playerData = players.map(player => {
       let wins = 0;
       let losses = 0;
+      let gamesWon = 0;
 
       matches.forEach(match => {
+        const isInTeamA = match.teamA.includes(player);
+        const isInTeamB = match.teamB.includes(player);
+
         const isWinner =
-          (match.winner === 'A' && match.teamA.includes(player)) ||
-          (match.winner === 'B' && match.teamB.includes(player));
+          (match.winner === 'A' && isInTeamA) ||
+          (match.winner === 'B' && isInTeamB);
         const isLoser =
-          (match.winner === 'A' && match.teamB.includes(player)) ||
-          (match.winner === 'B' && match.teamA.includes(player));
+          (match.winner === 'A' && isInTeamB) ||
+          (match.winner === 'B' && isInTeamA);
 
         if (isWinner) wins++;
         else if (isLoser) losses++;
+
+        // Calcular juegos ganados
+        if (match.result) {
+          const [scoreA, scoreB] = match.result.split('-').map(Number);
+          if (isInTeamA && !isNaN(scoreA)) {
+            gamesWon += scoreA;
+          } else if (isInTeamB && !isNaN(scoreB)) {
+            gamesWon += scoreB;
+          }
+        }
       });
 
       const total = wins + losses;
       const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : '—';
+      
+      // Calcular diferencia numérica y en texto
+      const diff = wins - losses;
+      const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
 
       return {
         player,
@@ -48,10 +73,14 @@ export default function StatsScreen({ route }) {
         wins,
         losses,
         total,
+        gamesWon,
+        diffStr,
+        diff, // ← Guardamos el número limpio para poder ordenar por él
       };
     });
 
-    setPlayerStats(playerData.sort((a, b) => b.winRate - a.winRate));
+    // Guardamos los datos base
+    setPlayerStats(playerData);
 
     // Estadísticas por pareja
     const pairMap = {};
@@ -84,55 +113,104 @@ export default function StatsScreen({ route }) {
     setPairStats(pairArray.sort((a, b) => b.winRate - a.winRate));
   };
 
+  // Función para alternar el orden al pulsar "Jugador"
+  const toggleJugadorSort = () => {
+    setSortMode(prev => (prev === 'normal' ? 'dif' : 'normal'));
+  };
+
+  // Función para rotar de modo al hacer click en el título de la última columna
+  const rotateColumnMode = () => {
+    setColumnMode(prev => {
+      if (prev === 'partidas') return 'juegos';
+      if (prev === 'juegos') return 'dif';
+      return 'partidas';
+    });
+  };
+
+  // 📊 Ordenamos dinámicamente la lista de jugadores antes de pintarla según el modo activo
+  const sortedPlayerStats = [...playerStats].sort((a, b) => {
+    if (sortMode === 'dif') {
+      return b.diff - a.diff; // Ordena por diferencia de partidas ganadas-perdidas
+    }
+    // Modo normal: Ordena por % de victorias
+    const rateA = a.winRate === '—' ? -1 : parseFloat(a.winRate);
+    const rateB = b.winRate === '—' ? -1 : parseFloat(b.winRate);
+    return rateB - rateA;
+  });
+
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Estadísticas - {groupName}</Text>
 
-      {/* Tabla de jugadores */}
+      {/* Cabecera de la Tabla de Jugadores */}
       <View style={styles.tableHeader}>
-        <Text style={[styles.cell, styles.bold]}>Jugador</Text>
-        <Text style={[styles.cell, styles.bold]}>% Victorias</Text>
+        {/* Ahora "Jugador" es un botón interactivo, pero mantiene tu formato original negro y limpio */}
+        <TouchableOpacity style={styles.cell} onPress={toggleJugadorSort} activeOpacity={0.8}>
+          <Text style={styles.bold}>Jugador</Text>
+        </TouchableOpacity>
+        
+        <Text style={[styles.stylesCellcustom || styles.cell, styles.bold]}>% V</Text>
         <Text style={[styles.cell, styles.bold]}>V / D</Text>
-        <Text style={[styles.cell, styles.bold]}>Partidas</Text>
+        
+        <TouchableOpacity style={styles.cell} onPress={rotateColumnMode} activeOpacity={0.8}>
+          <Text style={styles.bold}>
+            {columnMode === 'partidas' ? 'Partidas' : columnMode === 'juegos' ? 'Juegos' : 'Dif'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={playerStats}
-        keyExtractor={(item) => item.player}
-        renderItem={({ item }) => (
-          <View style={styles.tableRow}>
+      {/* Filas de la Tabla de Jugadores (Usa la lista ordenada dinámicamente) */}
+      {sortedPlayerStats.length > 0 ? (
+        sortedPlayerStats.map(item => (
+          <View style={styles.tableRow} key={item.player}>
             <Text style={styles.cell}>{item.player}</Text>
-            <Text style={styles.cell}>{item.winRate}</Text>
+            <Text style={styles.cell}>{item.winRate}%</Text>
             <Text style={styles.cell}>{item.wins} / {item.losses}</Text>
-            <Text style={styles.cell}>{item.total}</Text>
+            
+            <Text style={styles.cell}>
+              {columnMode === 'partidas' ? item.total : columnMode === 'juegos' ? item.gamesWon : item.diffStr}
+            </Text>
           </View>
-        )}
-      />
+        ))
+      ) : (
+        <Text style={{ marginTop: 10 }}>Sin estadísticas de jugadores</Text>
+      )}
 
-      {/* NUEVO: contador de partidas */}
       <Text style={styles.totalText}>Partidas totales jugadas: {totalMatches}</Text>
 
-      {/* Tabla de parejas */}
-      <Text style={styles.subtitle}>Todas las parejas</Text>
-      <View style={styles.tableHeader}>
-        <Text style={[styles.cell, styles.bold]}>Pareja</Text>
-        <Text style={[styles.cell, styles.bold]}>% Victorias</Text>
-        <Text style={[styles.cell, styles.bold]}>Partidas</Text>
+      {/* Botón Ver estadísticas parejas */}
+      <View style={{ marginVertical: 5 }}>
+        <Button
+          title={showPairs ? 'Ocultar estadísticas parejas' : 'Ver estadísticas parejas'}
+          onPress={() => setShowPairs(!showPairs)}
+        />
       </View>
 
-      <FlatList
-        data={pairStats}
-        keyExtractor={(item) => item.pair}
-        renderItem={({ item }) => (
-          <View style={styles.tableRow}>
-            <Text style={styles.cell}>{item.pair}</Text>
-            <Text style={styles.cell}>{item.winRate}</Text>
-            <Text style={styles.cell}>{item.total}</Text>
+      {/* Sección expandible de Parejas */}
+      {showPairs && (
+        <View style={{ marginTop: 15 }}>
+          <Text style={styles.subtitle}>Todas las parejas</Text>
+
+          <View style={styles.tableHeader}>
+            <Text style={[styles.cell, styles.bold]}>Pareja</Text>
+            <Text style={[styles.cell, styles.bold]}>% V</Text>
+            <Text style={[styles.cell, styles.bold]}>Partidas</Text>
           </View>
-        )}
-        ListEmptyComponent={<Text style={{ marginTop: 10 }}>Aún no hay parejas registradas</Text>}
-      />
-    </View>
+
+          {pairStats.length > 0 ? (
+            pairStats.map(item => (
+              <View style={styles.tableRow} key={item.pair}>
+                <Text style={styles.cell}>{item.pair}</Text>
+                <Text style={styles.cell}>{item.winRate}%</Text>
+                <Text style={styles.cell}>{item.total}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={{ marginTop: 10 }}>Aún no hay parejas registradas</Text>
+          )}
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
@@ -140,8 +218,8 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingTop: 10,
+    paddingBottom: 60,
     backgroundColor: '#fff',
-    flex: 1,
   },
   title: {
     fontSize: 22,
@@ -151,13 +229,13 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginTop: 30,
+    marginTop: 15,
     marginBottom: 10,
   },
   totalText: {
     fontSize: 16,
     marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 15,
     fontStyle: 'italic',
     textAlign: 'center',
   },
