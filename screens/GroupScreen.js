@@ -35,9 +35,9 @@ export default function GroupScreen({ route, navigation }) {
       const parsed = JSON.parse(data);
       setPlayers(parsed.players || []);
       
-      // Ordenamos las partidas dejando las más antiguas arriba del todo
+      // Ordenación: Las más recientes arriba, las más antiguas abajo
       const sortedMatches = (parsed.matches || []).sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
+        (a, b) => new Date(b.date) - new Date(a.date)
       );
       setMatches(sortedMatches);
     }
@@ -150,44 +150,69 @@ export default function GroupScreen({ route, navigation }) {
           <FlatList
             data={matches}
             keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item, index }) => (
-              <View style={styles.matchItem}>
-                {/* Hacemos clicable toda la sección de la información para abrir la edición */}
-                <TouchableOpacity 
-                  onPress={() => openEditModal(item, index)} 
-                  style={{ flex: 1 }}
-                  activeOpacity={0.7}
-                >
-                  <Text>
-                    <Text style={styles.dateText}>
-                      {new Date(item.date).toLocaleDateString('es-ES', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
+            renderItem={({ item, index }) => {
+              // Desglosamos el resultado original (ej: "1-3")
+              const [scoreA, scoreB] = item.result.split('-');
+
+              // 🔀 Lógica dinámica: Si ganó la Pareja B, invertimos el orden visualmente
+              const isWinnerB = item.winner === 'B';
+              
+              const firstTeam = isWinnerB ? item.teamB : item.teamA;
+              const secondTeam = isWinnerB ? item.teamA : item.teamB;
+              
+              const firstScore = isWinnerB ? scoreB : scoreA;
+              const secondScore = isWinnerB ? scoreA : scoreB;
+
+              // Destacamos en negrita al primero siempre que no sea un empate
+              const isFirstBold = item.winner === 'A' || item.winner === 'B';
+
+              return (
+                <View style={styles.matchItem}>
+                  <TouchableOpacity 
+                    onPress={() => openEditModal(item, index)} 
+                    style={{ flex: 1 }}
+                    activeOpacity={0.7}
+                  >
+                    <Text>
+                      <Text style={styles.dateText}>
+                        {new Date(item.date).toLocaleDateString('es-ES', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </Text>
+                      {/* El resultado ahora se ajusta mostrando siempre la puntuación del ganador primero */}
+                      {' - Resultado: '}{`${firstScore}-${secondScore}`}
                     </Text>
-                    {' - Resultado: '}{item.result}
-                  </Text>
-                  <Text>
-                    Ganó {item.winner === 'A'
-                      ? `${item.teamA[0]} y ${item.teamA[1]}`
-                      : `${item.teamB[0]} y ${item.teamB[1]}`}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => deleteMatch(index)}
-                  style={styles.deleteButton}
-                >
-                  <Text style={{ color: 'red' }}>Eliminar</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                    
+                    {/* El ganador siempre sale impreso al principio y en negrita */}
+                    <Text style={styles.teamsRow}>
+                      <Text style={isFirstBold ? styles.boldText : styles.normalText}>
+                        {firstTeam.join(' y ')}
+                      </Text>
+                      <Text style={styles.normalText}> vs </Text>
+                      <Text style={styles.normalText}>
+                        {secondTeam.join(' y ')}
+                      </Text>
+                    </Text>
+
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => deleteMatch(index)}
+                    style={styles.deleteButton}
+                  >
+                    <Text style={{ color: 'red' }}>Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }}
             ListEmptyComponent={<Text style={{ marginTop: 10 }}>Aún no hay partidas</Text>}
           />
         </>
       )}
 
-      {/* MODAL DE EDICIÓN (Mantiene el flujo de tu App de forma limpia) */}
+      {/* MODAL DE EDICIÓN */}
       <Modal visible={isModalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -224,70 +249,20 @@ export default function GroupScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // Se añade paddingBottom: 60 para dar aire abajo del todo y separarlo de la barra del móvil
   container: { flex: 1, padding: 20, paddingTop: 10, paddingBottom: 60, backgroundColor: '#fff' },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  sectionText: {
-    marginTop: 10,
-    fontStyle: 'italic',
-    color: '#444',
-  },
-  matchItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 5,
-  },
-  deleteButton: {
-    marginLeft: 10,
-  },
-  dateText: {
-    color: '#007AFF',
-    fontWeight: 'bold',
-  },
-  
-  // Estilos del modal flotante de edición
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 20,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  modalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 20,
-  },
-  modalInputBox: {
-    alignItems: 'center',
-    width: '40%',
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 8,
-    borderRadius: 5,
-    width: '100%',
-    textAlign: 'center',
-    fontSize: 16,
-  },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
+  sectionText: { marginTop: 10, fontStyle: 'italic', color: '#444' },
+  matchItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 5, paddingVertical: 5 },
+  deleteButton: { marginLeft: 10, padding: 10 },
+  dateText: { color: '#007AFF', fontWeight: 'bold' },
+  teamsRow: { marginTop: 4, fontSize: 14 },
+  boldText: { fontWeight: 'bold', color: '#000' },
+  normalText: { fontWeight: 'normal', color: '#555' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '80%', backgroundColor: '#fff', borderRadius: 8, padding: 20, alignItems: 'center' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+  modalRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginBottom: 20 },
+  modalInputBox: { alignItems: 'center', width: '40%' },
+  modalInput: { borderWidth: 1, borderColor: '#ccc', padding: 8, borderRadius: 5, width: '100%', textAlign: 'center', fontSize: 16 },
 });
