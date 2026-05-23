@@ -46,8 +46,6 @@ export default function StatsScreen({ route }) {
   const [selectedIndPlayer, setSelectedIndPlayer] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [hiddenPlayers, setHiddenPlayers] = useState([]);
-
-  // Estado para controlar qué muestra el gráfico: 'partidas' o 'juegos'
   const [chartMode, setChartMode] = useState('partidas');
 
   useEffect(() => {
@@ -205,7 +203,6 @@ export default function StatsScreen({ route }) {
               if (m.result) {
                 const [scoreA, scoreB] = m.result.split('-').map(Number);
                 if (!isNaN(scoreA) && !isNaN(scoreB)) {
-                  // 🔀 Solo sumamos los juegos ganados (acumulativo ascendente)
                   accum += isA ? scoreA : scoreB;
                 }
               }
@@ -234,7 +231,6 @@ export default function StatsScreen({ route }) {
             if (m.result) {
               const [scoreA, scoreB] = m.result.split('-').map(Number);
               if (!isNaN(scoreA) && !isNaN(scoreB)) {
-                // 🔀 Solo sumamos los juegos ganados (acumulativo ascendente)
                 accum += isA ? scoreA : scoreB;
               }
             }
@@ -413,50 +409,40 @@ export default function StatsScreen({ route }) {
               {/* Gráfico de Evolución Avanzado */}
               <View style={styles.chartContainer}>
                 
-                {/* Título dinámico */}
+                {/* Título dinámico para alternar */}
                 <TouchableOpacity onPress={toggleChartMode} activeOpacity={0.7}>
                   <Text style={[styles.chartTitle, { color: '#007AFF' }]}>
                     {chartMode === 'partidas' ? 'Evolución (Dif - Partidas Totales)' : 'Evolución (Juegos Ganados)'}
                   </Text>
                 </TouchableOpacity>
 
-                <View style={styles.chartRow}>
-                  <View style={styles.yLabelContainer}>
-                    {/* 🆕 Etiqueta Y dinámica */}
-                    <Text style={styles.axisLabelY}>
-                      {chartMode === 'partidas' ? 'Balance (Victorias - Derrotas) →' : 'Total Juegos Ganados →'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.chartAndXContainer}>
-                    <LineChart
-                      data={chartData}
-                      width={screenWidth - 65} 
-                      height={220}
-                      withDots={false}
-                      withHorizontalLines={true}
-                      withVerticalLines={true}
-                      segments={dynamicSegments} 
-                      chartConfig={{
-                        backgroundColor: "#ffffff",
-                        backgroundGradientFrom: "#ffffff",
-                        backgroundGradientTo: "#ffffff",
-                        fillShadowGradientFromOpacity: compareMode ? 0 : 0.2,
-                        fillShadowGradientToOpacity: 0,
-                        decimalPlaces: 0,
-                        color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                        labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                        paddingRight: 40,
-                        propsForBackgroundLines: {
-                          strokeWidth: 1,
-                          stroke: "rgba(0, 0, 0, 0.08)",
-                          strokeDasharray: "4, 4", 
-                        }
-                      }}
-                      style={{ marginVertical: 10, marginLeft: -20, borderRadius: 10 }} 
-                    />
-                  </View>
-                </View>
+                {/* 🧹 Contenedor limpio: Sin textos verticales a la izquierda, ocupa todo el ancho de forma directa */}
+                <LineChart
+                  data={chartData}
+                  width={screenWidth} 
+                  height={220}
+                  withDots={false}
+                  withHorizontalLines={true}
+                  withVerticalLines={true}
+                  segments={dynamicSegments} 
+                  chartConfig={{
+                    backgroundColor: "#ffffff",
+                    backgroundGradientFrom: "#ffffff",
+                    backgroundGradientTo: "#ffffff",
+                    fillShadowGradientFromOpacity: compareMode ? 0 : 0.2,
+                    fillShadowGradientToOpacity: 0,
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                    paddingRight: 40,
+                    propsForBackgroundLines: {
+                      strokeWidth: 1,
+                      stroke: "rgba(0, 0, 0, 0.08)",
+                      strokeDasharray: "4, 4", 
+                    }
+                  }}
+                  style={{ marginVertical: 10, marginLeft: -20, borderRadius: 10 }} 
+                />
 
                 <Button
                   title={compareMode ? "Ocultar resto de jugadores" : "Comparar con todos"}
@@ -526,19 +512,6 @@ const styles = StyleSheet.create({
   
   chartContainer: { alignItems: 'center', marginTop: 10, paddingBottom: 20 },
   chartTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 }, 
-  chartRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
-  
-  yLabelContainer: { width: 25, justifyContent: 'center', alignItems: 'center' },
-  axisLabelY: { 
-    transform: [{ rotate: '-90deg' }],
-    fontSize: 12, 
-    color: '#666', 
-    fontStyle: 'italic',
-    width: 200, 
-    textAlign: 'center'
-  },
-  
-  chartAndXContainer: { flex: 1, alignItems: 'center' },
   
   legendContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 15 },
   legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 12, marginBottom: 8, padding: 4 },
